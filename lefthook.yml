@@ -1,0 +1,23 @@
+# https://github.com/evilmartians/lefthook
+# After cloning: run `lefthook install` once so Git hooks are wired up.
+
+min_version: 1.6.0
+
+pre-push:
+  parallel: false
+  jobs:
+    - name: format
+      fail_text: "make format changed files; stage, commit, and push again."
+      run: |
+        make format
+        git diff --quiet || {
+          echo >&2 "make format modified the working tree; commit those changes before pushing."
+          git diff --stat >&2
+          exit 1
+        }
+
+    - name: golangci-lint
+      run: make lint
+
+    - name: go test
+      run: make test

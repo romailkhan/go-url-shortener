@@ -21,6 +21,7 @@ help:
 	@echo "  db-down    - Stop Postgres and Redis containers"
 	@echo "  db-logs    - Follow compose logs"
 	@echo "  db-destroy - Stop containers and remove compose volumes (DB + Redis data)"
+	@echo "  lefthook-install - Install Git hooks from lefthook.yml (run once per clone)"
 	@echo "  help       - Show this help message"
 	@echo ""
 
@@ -64,6 +65,9 @@ db-logs:
 
 db-destroy:
 	@$(COMPOSE) down -v
+
+lefthook:
+	@lefthook install
 
 # Live Reload with Air
 dev:
