@@ -3,21 +3,19 @@ package main
 import (
 	"log"
 
-	"github.com/gofiber/fiber/v3"
-
 	"url-shortener/internal/config"
+	"url-shortener/internal/server"
 )
 
 func main() {
 	if _, err := config.LoadConfig(); err != nil {
-		log.Fatal(err)
+		log.Fatalf("failed to load config: %v", err)
 	}
 
-	app := fiber.New()
+	srv, err := server.New()
+	if err != nil {
+		log.Fatalf("failed to create server: %v", err)
+	}
 
-	app.Get("/", func(c fiber.Ctx) error {
-		return c.SendString("Hello, World 👋!")
-	})
-
-	log.Fatal(app.Listen(":" + config.GetPort()))
+	log.Fatal(srv.Listen())
 }
