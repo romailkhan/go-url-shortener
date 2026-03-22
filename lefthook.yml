@@ -1,3 +1,4 @@
+# Install hooks: `make lefthook-install` (installs binary to GOPATH/bin if needed).
 min_version: 2.1.4
 
 pre-push:

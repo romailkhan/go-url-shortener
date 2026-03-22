@@ -1,6 +1,8 @@
 # Makefile for go-url-shortener
 
 COMPOSE := docker compose -f docker-compose.yml
+GOPATH_BIN := $(shell go env GOPATH)/bin
+LEFTHOOK := $(GOPATH_BIN)/lefthook
 
 # Default target
 .DEFAULT_GOAL := help
@@ -66,8 +68,14 @@ db-logs:
 db-destroy:
 	@$(COMPOSE) down -v
 
-lefthook:
-	@lefthook install
+# Installs the lefthook binary (via go install) if missing, then wires .git/hooks.
+lefthook-install:
+	@if [ ! -x "$(LEFTHOOK)" ] && ! command -v lefthook >/dev/null 2>&1; then \
+		echo "Installing lefthook to $(GOPATH_BIN) ..."; \
+		go install github.com/evilmartians/lefthook/v2@latest; \
+	fi
+	@PATH="$(GOPATH_BIN):$$PATH" lefthook install
+	@echo "Done. Add to PATH for bare invocations: export PATH=\"$(GOPATH_BIN):\$$PATH\""
 
 # Live Reload with Air
 dev:
