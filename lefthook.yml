@@ -1,7 +1,4 @@
-# https://github.com/evilmartians/lefthook
-# After cloning: run `lefthook install` once so Git hooks are wired up.
-
-min_version: 1.6.0
+min_version: 2.1.4
 
 pre-push:
   parallel: false
