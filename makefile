@@ -22,11 +22,11 @@ help: ## Show available commands
 all: build
 
 build:
-	@go build -o main cmd/main/main.go
+	@go build -o main ./cmd
 
 # Run the application
 run:
-	@go run cmd/main/main.go
+	@go run ./cmd
 
 # Format code
 format:
