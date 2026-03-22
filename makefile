@@ -1,21 +1,27 @@
-# Simple Makefile for Amped Go Backend
+# Makefile for go-url-shortener
+
+COMPOSE := docker compose -f docker-compose.yml
 
 # Default target
 .DEFAULT_GOAL := help
 
-# Help command
-help: ## Show available commands
+# Help command - shows available commands
+help:
 	@echo "Available commands:"
 	@echo ""
-	@echo "  build    - Build the application binary"
-	@echo "  run      - Run the application directly"
-	@echo "  dev      - Start development server with live reload (Air)"
-	@echo "  format   - Format code using golangci-lint"
-	@echo "  lint     - Run linter using golangci-lint"
-	@echo "  test     - Run all tests"
-	@echo "  check    - Run format, lint, and test"
-	@echo "  clean    - Remove built binary"
-	@echo "  help     - Show this help message"
+	@echo "  build      - Build the application binary"
+	@echo "  run        - Run the application directly"
+	@echo "  dev        - Start development server with live reload (Air)"
+	@echo "  format     - Format code using golangci-lint"
+	@echo "  lint       - Run linter using golangci-lint"
+	@echo "  test       - Run all tests"
+	@echo "  check      - Run format, lint, and test"
+	@echo "  clean      - Remove built binary"
+	@echo "  db-up      - Start Postgres and Redis (compose up -d --build)"
+	@echo "  db-down    - Stop Postgres and Redis containers"
+	@echo "  db-logs    - Follow compose logs"
+	@echo "  db-destroy - Stop containers and remove compose volumes (DB + Redis data)"
+	@echo "  help       - Show this help message"
 	@echo ""
 
 # Build the application
@@ -46,6 +52,18 @@ test:
 # Clean the binary
 clean:
 	@rm -f main
+
+db-up:
+	@$(COMPOSE) up -d --build
+
+db-down:
+	@$(COMPOSE) down
+
+db-logs:
+	@$(COMPOSE) logs -f
+
+db-destroy:
+	@$(COMPOSE) down -v
 
 # Live Reload with Air
 dev:

@@ -1,0 +1,23 @@
+FROM postgres:18
+
+# Environment variables will be set by docker-compose
+ENV PGDATA=/var/lib/postgresql/data/pgdata
+
+# Create directory for custom configuration and set proper permissions
+RUN mkdir -p /docker-entrypoint-initdb.d && \
+    chown -R postgres:postgres /docker-entrypoint-initdb.d && \
+    chmod -R 755 /docker-entrypoint-initdb.d
+
+# Copy initialization scripts
+COPY ./internal/database/init/ /docker-entrypoint-initdb.d/
+
+# Set proper permissions for the init scripts
+RUN chown -R postgres:postgres /docker-entrypoint-initdb.d && \
+    chmod -R 755 /docker-entrypoint-initdb.d
+
+# Expose PostgreSQL port
+EXPOSE 5432
+
+# Runtime env POSTGRES_USER / POSTGRES_DB come from compose; $$ → $ in the shell health command
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD pg_isready -U "$${POSTGRES_USER:-postgres}" -d "$${POSTGRES_DB:-postgres}" || exit 1
