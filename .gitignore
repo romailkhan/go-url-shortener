@@ -1,0 +1,57 @@
+# Binaries and build output
+/bin/
+/dist/
+/build/bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Go coverage and profiling
+*.coverprofile
+coverage.out
+coverage.html
+*.prof
+cpu.prof
+mem.prof
+
+# Go workspace (local multi-module)
+go.work
+go.work.sum
+
+# Dependency directories (unusual with Go modules, but some tools use them)
+vendor/
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# Local databases and dumps (common in CRUD dev)
+*.db
+*.sqlite
+*.sqlite3
+dump.sql
+*.sql.gz
+
+# IDE and editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs, temp, and Air (live reload) build dir
+*.log
+logs/
+tmp/
+temp/
