@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
+	"strconv"
 	"strings"
 	"time"
 
@@ -19,6 +21,13 @@ import (
 
 const (
 	redisKeyPrefix = "u:v2:"
+
+	// Pending click counters (buffered before flush to Postgres).
+	redisClickKeyPrefix = "u:clk:"
+	redisClickDirtySet  = "u:clk:dirty"
+
+	clickFlushInterval = 2 * time.Second
+	clickFlushBatch    = 500
 
 	maxLinkLifetime = 366 * 24 * time.Hour
 	minPasswordLen  = 8
@@ -186,6 +195,10 @@ func cacheKey(code string) string {
 	return redisKeyPrefix + code
 }
 
+func clickRedisKey(code string) string {
+	return redisClickKeyPrefix + code
+}
+
 // Resolve returns the target URL after optional password and expiry checks.
 func (s *Shortener) Resolve(ctx context.Context, code, password string) (string, error) {
 	code = strings.TrimSpace(code)
@@ -276,10 +289,12 @@ func (s *Shortener) Lookup(ctx context.Context, code, password string) (*LookupR
 		return nil, ErrExpired
 	}
 
+	pending := s.pendingClicks(ctx, code)
+
 	res := &LookupResult{
 		Code:              link.Code,
 		ShortPath:         "/s/" + link.Code,
-		ClickCount:        link.ClickCount,
+		ClickCount:        link.ClickCount + pending,
 		ExpiresAt:         link.ExpiresAt,
 		PasswordProtected: link.HasPassword(),
 		CreatedAt:         link.CreatedAt,
@@ -295,13 +310,98 @@ func (s *Shortener) Lookup(ctx context.Context, code, password string) (*LookupR
 	return res, nil
 }
 
-// RecordClick increments the persisted click counter (best-effort for redirects).
+func (s *Shortener) pendingClicks(ctx context.Context, code string) uint64 {
+	v, err := s.rdb.Get(ctx, clickRedisKey(code)).Result()
+	if err == redis.Nil || v == "" {
+		return 0
+	}
+	n, err := strconv.ParseUint(v, 10, 64)
+	if err != nil {
+		return 0
+	}
+	return n
+}
+
+// RecordClick buffers a redirect click in Redis (one RTT). Counts are flushed to Postgres
+// periodically by RunClickFlush; Lookup adds pending Redis counts to the stored total.
 func (s *Shortener) RecordClick(ctx context.Context, code string) {
 	code = strings.TrimSpace(code)
 	if code == "" {
 		return
 	}
-	_ = s.repo.IncrementClicks(ctx, code)
+	pipe := s.rdb.Pipeline()
+	pipe.Incr(ctx, clickRedisKey(code))
+	pipe.SAdd(ctx, redisClickDirtySet, code)
+	if _, err := pipe.Exec(ctx); err != nil {
+		log.Printf("click buffer redis: %v", err)
+	}
+}
+
+// RunClickFlush periodically moves buffered click counts from Redis into Postgres until ctx is done.
+func (s *Shortener) RunClickFlush(ctx context.Context) {
+	t := time.NewTicker(clickFlushInterval)
+	defer t.Stop()
+	defer s.drainAllPendingClicks(context.Background())
+
+	s.flushClickBatch(context.Background(), clickFlushBatch)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			s.flushClickBatch(context.Background(), clickFlushBatch)
+		}
+	}
+}
+
+func (s *Shortener) drainAllPendingClicks(ctx context.Context) {
+	for {
+		n := s.flushClickBatch(ctx, clickFlushBatch)
+		if n == 0 {
+			return
+		}
+	}
+}
+
+// flushClickBatch pops up to maxCodes entries from the dirty set and persists their counters.
+// Returns how many codes were processed (including those with nothing to flush).
+func (s *Shortener) flushClickBatch(ctx context.Context, maxCodes int) int {
+	processed := 0
+	for range maxCodes {
+		code, err := s.rdb.SPop(ctx, redisClickDirtySet).Result()
+		if err == redis.Nil {
+			break
+		}
+		if err != nil {
+			log.Printf("click flush spop: %v", err)
+			break
+		}
+		processed++
+		s.flushOneClickKey(ctx, code)
+	}
+	return processed
+}
+
+func (s *Shortener) flushOneClickKey(ctx context.Context, code string) {
+	nStr, err := s.rdb.GetDel(ctx, clickRedisKey(code)).Result()
+	if err == redis.Nil || nStr == "" {
+		return
+	}
+	n, err := strconv.ParseUint(nStr, 10, 64)
+	if err != nil || n == 0 {
+		return
+	}
+	if err := s.repo.IncrementClicksBy(ctx, code, n); err != nil {
+		log.Printf("click flush db %s: %v", code, err)
+		_, _ = s.rdb.IncrBy(ctx, clickRedisKey(code), int64(n)).Result()
+		_, _ = s.rdb.SAdd(ctx, redisClickDirtySet, code).Result()
+		return
+	}
+	exists, _ := s.rdb.Exists(ctx, clickRedisKey(code)).Result()
+	if exists > 0 {
+		_, _ = s.rdb.SAdd(ctx, redisClickDirtySet, code).Result()
+	}
 }
 
 func validateCode(alias string) error {

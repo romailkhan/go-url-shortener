@@ -18,7 +18,7 @@ Base URL: `/api/v1` for JSON; public redirects live at `/s/:code`.
 |--------|------|-------------|
 | `POST` | `/api/v1/shorten` | Create a short link |
 | `GET` | `/api/v1/links/:code` | Metadata (clicks, expiry, optional `target_url`) |
-| `GET` | `/s/:code` | Redirect to the target (increments click count) |
+| `GET` | `/s/:code` | Redirect to the target (buffers click in Redis; flushed to Postgres in the background) |
 
 **`POST /api/v1/shorten`** — JSON body:
 

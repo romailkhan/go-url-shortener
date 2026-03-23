@@ -1,7 +1,11 @@
 package main
 
 import (
+	"context"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"url-shortener/internal/cache"
 	"url-shortener/internal/config"
@@ -45,6 +49,10 @@ func main() {
 
 	repo := repository.NewLink(db)
 	shortener := service.NewShortener(repo, rdb)
+
+	flushCtx, stopFlush := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stopFlush()
+	go shortener.RunClickFlush(flushCtx)
 
 	srv, err := server.New(shortener)
 	if err != nil {

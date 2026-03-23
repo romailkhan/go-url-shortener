@@ -38,9 +38,17 @@ func (r *Link) FindByCode(ctx context.Context, code string) (*model.Link, error)
 
 // IncrementClicks adds one to click_count for the given code.
 func (r *Link) IncrementClicks(ctx context.Context, code string) error {
+	return r.IncrementClicksBy(ctx, code, 1)
+}
+
+// IncrementClicksBy adds delta to click_count for the given code.
+func (r *Link) IncrementClicksBy(ctx context.Context, code string, delta uint64) error {
+	if delta == 0 {
+		return nil
+	}
 	res := r.db.WithContext(ctx).Model(&model.Link{}).
 		Where("code = ?", code).
-		UpdateColumn("click_count", gorm.Expr("click_count + ?", 1))
+		UpdateColumn("click_count", gorm.Expr("click_count + ?", delta))
 	if res.Error != nil {
 		return res.Error
 	}
