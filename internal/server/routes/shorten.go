@@ -1,10 +1,13 @@
 package routes
 
 import (
+	"errors"
 	"net/url"
 	"strings"
 
 	"github.com/gofiber/fiber/v3"
+
+	"url-shortener/internal/service"
 )
 
 type shortenRequest struct {
@@ -13,12 +16,13 @@ type shortenRequest struct {
 }
 
 // MountShorten registers URL shortening API routes on the given router (e.g. /api/v1 group).
-func MountShorten(r fiber.Router) {
-	r.Post("/shorten", shortenCreate)
+func MountShorten(r fiber.Router, svc *service.Shortener) {
+	r.Post("/shorten", func(c fiber.Ctx) error {
+		return shortenCreate(c, svc)
+	})
 }
 
-// shortenCreate accepts a long URL and will persist a short code once storage is wired.
-func shortenCreate(c fiber.Ctx) error {
+func shortenCreate(c fiber.Ctx, svc *service.Shortener) error {
 	var req shortenRequest
 	if err := c.Bind().Body(&req); err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid JSON body")
@@ -37,9 +41,22 @@ func shortenCreate(c fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, "only http and https URLs are allowed")
 	}
 
-	// TODO: persist mapping via repository / service; return 201 with short_url + code.
-	return c.Status(fiber.StatusNotImplemented).JSON(fiber.Map{
-		"error": "short link persistence is not implemented yet",
-		"url":   u.String(),
+	res, err := svc.Create(c.Context(), u.String(), req.CustomAlias)
+	if err != nil {
+		var in *service.InputError
+		if errors.As(err, &in) {
+			return fiber.NewError(fiber.StatusBadRequest, in.Error())
+		}
+		if errors.Is(err, service.ErrConflict) {
+			return fiber.NewError(fiber.StatusConflict, "short code already taken")
+		}
+		return err
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
+		"code":       res.Code,
+		"target_url": res.TargetURL,
+		"short_path": res.ShortPath,
+		"short_url":  publicShortURL(c, res.ShortPath),
 	})
 }

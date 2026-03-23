@@ -7,6 +7,7 @@ import (
 
 	"url-shortener/internal/config"
 	"url-shortener/internal/server/routes"
+	"url-shortener/internal/service"
 )
 
 // Server wraps the Fiber application and listen configuration.
@@ -15,8 +16,8 @@ type Server struct {
 	Port string
 }
 
-// New builds the Fiber app, applies middleware, and registers routes.
-func New() (*Server, error) {
+// New builds the Fiber app and registers routes.
+func New(shortener *service.Shortener) (*Server, error) {
 	port := config.GetPort()
 	if port == "" {
 		return nil, fmt.Errorf("PORT is not configured")
@@ -29,9 +30,9 @@ func New() (*Server, error) {
 
 	routes.MountHealth(app)
 	api := app.Group("/api/v1")
-	routes.MountShorten(api)
-	routes.MountLinkLookup(api)
-	routes.MountPublicRedirects(app)
+	routes.MountShorten(api, shortener)
+	routes.MountLinkLookup(api, shortener)
+	routes.MountPublicRedirects(app, shortener)
 
 	return &Server{
 		App:  app,

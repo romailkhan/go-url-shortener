@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"log"
+	"net"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -83,12 +84,49 @@ func GetDatabaseURL() (string, error) {
 		return "", fmt.Errorf("missing required database configuration: user, password, or name")
 	}
 
+	host := strings.TrimSpace(AppConfig.Database.Host)
+	if host == "" {
+		host = "localhost"
+	}
+	port := strings.TrimSpace(AppConfig.Database.Port)
+	if port == "" {
+		port = "5432"
+	}
+	ssl := strings.TrimSpace(AppConfig.Database.SSLMode)
+	if ssl == "" {
+		ssl = "disable"
+	}
+
 	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
 		AppConfig.Database.User,
 		AppConfig.Database.Password,
-		AppConfig.Database.Host,
-		AppConfig.Database.Port,
+		host,
+		port,
 		AppConfig.Database.Name,
-		AppConfig.Database.SSLMode,
+		ssl,
 	), nil
+}
+
+// RedisAddr returns host:port for the Redis client.
+func RedisAddr() string {
+	if AppConfig == nil {
+		return "localhost:6379"
+	}
+	h := strings.TrimSpace(AppConfig.Redis.Host)
+	if h == "" {
+		h = "localhost"
+	}
+	p := strings.TrimSpace(AppConfig.Redis.Port)
+	if p == "" {
+		p = "6379"
+	}
+	return net.JoinHostPort(h, p)
+}
+
+// RedisPassword returns the Redis password (may be empty).
+func RedisPassword() string {
+	if AppConfig == nil {
+		return ""
+	}
+	return AppConfig.Redis.Password
 }
