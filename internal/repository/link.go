@@ -22,9 +22,8 @@ func NewLink(db *gorm.DB) *Link {
 }
 
 // Create inserts a new link. Caller must ensure code uniqueness.
-func (r *Link) Create(ctx context.Context, code, targetURL string) error {
-	link := model.Link{Code: code, TargetURL: targetURL}
-	return r.db.WithContext(ctx).Create(&link).Error
+func (r *Link) Create(ctx context.Context, link *model.Link) error {
+	return r.db.WithContext(ctx).Create(link).Error
 }
 
 // FindByCode returns the link or gorm.ErrRecordNotFound.
@@ -35,6 +34,20 @@ func (r *Link) FindByCode(ctx context.Context, code string) (*model.Link, error)
 		return nil, err
 	}
 	return &link, nil
+}
+
+// IncrementClicks adds one to click_count for the given code.
+func (r *Link) IncrementClicks(ctx context.Context, code string) error {
+	res := r.db.WithContext(ctx).Model(&model.Link{}).
+		Where("code = ?", code).
+		UpdateColumn("click_count", gorm.Expr("click_count + ?", 1))
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // IsUniqueViolation reports Postgres unique constraint violations (23505).

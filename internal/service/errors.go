@@ -4,8 +4,11 @@ import "errors"
 
 // Sentinel errors for HTTP mapping.
 var (
-	ErrNotFound = errors.New("link not found")
-	ErrConflict = errors.New("short code already exists")
+	ErrNotFound         = errors.New("link not found")
+	ErrConflict         = errors.New("short code already exists")
+	ErrExpired          = errors.New("link has expired")
+	ErrPasswordRequired = errors.New("password required")
+	ErrPasswordInvalid  = errors.New("invalid password")
 )
 
 // InputError is a client-side validation problem.

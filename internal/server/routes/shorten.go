@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v3"
 
@@ -13,6 +14,8 @@ import (
 type shortenRequest struct {
 	URL         string `json:"url"`
 	CustomAlias string `json:"custom_alias,omitempty"`
+	Password    string `json:"password,omitempty"`
+	ExpiresIn   string `json:"expires_in,omitempty"` // Go duration, e.g. "24h", "168h"
 }
 
 // MountShorten registers URL shortening API routes on the given router (e.g. /api/v1 group).
@@ -41,7 +44,20 @@ func shortenCreate(c fiber.Ctx, svc *service.Shortener) error {
 		return fiber.NewError(fiber.StatusBadRequest, "only http and https URLs are allowed")
 	}
 
-	res, err := svc.Create(c.Context(), u.String(), req.CustomAlias)
+	var exp time.Duration
+	if strings.TrimSpace(req.ExpiresIn) != "" {
+		exp, err = time.ParseDuration(strings.TrimSpace(req.ExpiresIn))
+		if err != nil {
+			return fiber.NewError(fiber.StatusBadRequest, "expires_in must be a Go duration (e.g. 24h, 168h)")
+		}
+	}
+
+	res, err := svc.Create(c.Context(), service.CreateInput{
+		TargetURL:   u.String(),
+		CustomAlias: req.CustomAlias,
+		Password:    req.Password,
+		ExpiresIn:   exp,
+	})
 	if err != nil {
 		var in *service.InputError
 		if errors.As(err, &in) {
@@ -53,10 +69,18 @@ func shortenCreate(c fiber.Ctx, svc *service.Shortener) error {
 		return err
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
-		"code":       res.Code,
-		"target_url": res.TargetURL,
-		"short_path": res.ShortPath,
-		"short_url":  publicShortURL(c, res.ShortPath),
-	})
+	out := fiber.Map{
+		"code":               res.Code,
+		"target_url":         res.TargetURL,
+		"short_path":         res.ShortPath,
+		"short_url":          publicShortURL(c, res.ShortPath),
+		"password_protected": res.PasswordProtected,
+	}
+	if res.ExpiresAt != nil {
+		out["expires_at"] = res.ExpiresAt.UTC().Format(time.RFC3339)
+	} else {
+		out["expires_at"] = nil
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(out)
 }
